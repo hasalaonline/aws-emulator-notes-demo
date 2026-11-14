@@ -1,0 +1,33 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install AWS Emulator
+        run: |
+          curl -fsSLo aws-emulator.deb https://downloads.aws.com/aws-emulator/packages/aws-emulator/LTS/latest/aws-emulator_amd64.deb
+          sudo apt-get install -y ./aws-emulator.deb
+          aws-emulator -v
+
+      - name: Start the emulator
+        run: |
+          aws-emulator --telemetry off > emulator.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf --cacert ~/.aws/emulator/9297/ca.pem https://127.0.0.1:9297/__admin/health && break
+            sleep 1
+          done
+
+      - name: Run tests
+        run: |
+          pip install -r requirements.txt
+          source scripts/emu-env.sh
+          pytest -v
